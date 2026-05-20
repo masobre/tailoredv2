@@ -82,24 +82,28 @@ function SearchBar() {
  * Music Carousel with Spotify Integration
  */
 function MusicCarousel() {
-  const [spotifyConnected, setSpotifyConnected] = useState(true); // Auto-connected
-  const [spotifyAccessToken, setSpotifyAccessToken] = useState<string | null>("auto");
+  const [spotifyConnected, setSpotifyConnected] = useState(false);
+  const [spotifyAccessToken, setSpotifyAccessToken] = useState<string | null>(null);
   const [scrollPos, setScrollPos] = useState(0);
   const [recommendations, setRecommendations] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [hasInitialized, setHasInitialized] = useState(false);
 
   const trackPreference = trpc.music.trackPreference.useMutation();
   const getSpotifyAuthUrl = trpc.music.getSpotifyAuthUrl.useQuery();
+  const handleCallback = trpc.music.handleSpotifyCallback.useMutation();
   const fetchRecommendations = trpc.music.fetchAndSaveRecommendations.useMutation();
 
-  // Auto-fetch recommendations on component mount
+  // Auto-fetch recommendations when token is available
   React.useEffect(() => {
     if (!hasInitialized && spotifyConnected && spotifyAccessToken) {
       setHasInitialized(true);
+      setIsLoading(true);
+      setError(null);
       fetchRecommendations.mutate({ accessToken: spotifyAccessToken });
     }
-  }, [hasInitialized, spotifyConnected, spotifyAccessToken, fetchRecommendations]);
+  }, [hasInitialized, spotifyConnected, spotifyAccessToken]);
 
   const handleSpotifyConnect = async () => {
     if (!getSpotifyAuthUrl.data?.authUrl) return;
@@ -119,12 +123,25 @@ function MusicCarousel() {
     const handleMessage = (event: MessageEvent) => {
       if (event.data.type === "SPOTIFY_AUTH_SUCCESS") {
         const code = event.data.code;
-        setSpotifyConnected(true);
-        setSpotifyAccessToken(code);
-        // Fetch recommendations immediately
-        setTimeout(() => {
-          fetchRecommendations.mutate({ accessToken: code });
-        }, 500);
+        setIsLoading(true);
+        setError(null);
+        // Exchange code for access token
+        handleCallback.mutate(
+          { code },
+          {
+            onSuccess: (data) => {
+              setSpotifyConnected(true);
+              setSpotifyAccessToken(data.accessToken);
+              // Reset hasInitialized so useEffect triggers
+              setHasInitialized(false);
+            },
+            onError: (err) => {
+              setError("Failed to authenticate with Spotify");
+              setIsLoading(false);
+              console.error("Spotify auth error:", err);
+            },
+          }
+        );
         window.removeEventListener("message", handleMessage);
       }
     };
@@ -139,15 +156,18 @@ function MusicCarousel() {
     fetchRecommendations.mutate({ accessToken: spotifyAccessToken });
   };
 
-  // Update recommendations when mutation succeeds
+  // Handle recommendations fetch success/error
   React.useEffect(() => {
     if (fetchRecommendations.isSuccess && fetchRecommendations.data?.recommendations) {
-      if (JSON.stringify(recommendations) !== JSON.stringify(fetchRecommendations.data.recommendations)) {
-        setRecommendations(fetchRecommendations.data.recommendations);
-        setIsLoading(false);
-      }
+      setRecommendations(fetchRecommendations.data.recommendations);
+      setIsLoading(false);
+      setError(null);
+    } else if (fetchRecommendations.isError) {
+      setError("Failed to fetch recommendations. Please try again.");
+      setIsLoading(false);
+      setRecommendations([]);
     }
-  }, [fetchRecommendations.isSuccess, fetchRecommendations.data]);
+  }, [fetchRecommendations.isSuccess, fetchRecommendations.isError, fetchRecommendations.data]);
 
   const scroll = (direction: "left" | "right") => {
     const container = document.getElementById("music-carousel");
@@ -210,11 +230,37 @@ function MusicCarousel() {
         </div>
       </div>
 
-      {isLoading && recommendations.length === 0 ? (
+      {error ? (
+        <div className="rounded-lg border border-red-500/20 bg-gradient-to-br from-red-500/10 to-orange-500/10 p-8 text-center">
+          <Music className="h-12 w-12 text-red-400 mx-auto mb-4" />
+          <p className="text-white font-semibold mb-2">Error Loading Music</p>
+          <p className="text-gray-400 text-sm mb-4">{error}</p>
+          <Button
+            onClick={handleSpotifyConnect}
+            className="bg-green-600 hover:bg-green-700 text-white"
+          >
+            Reconnect Spotify
+          </Button>
+        </div>
+      ) : isLoading && recommendations.length === 0 ? (
         <div className="rounded-lg border border-purple-500/20 bg-gradient-to-br from-purple-500/10 to-pink-500/10 p-8 text-center">
           <Music className="h-12 w-12 text-purple-400 mx-auto mb-4 animate-pulse" />
           <p className="text-white font-semibold mb-2">Loading your recommendations...</p>
           <p className="text-gray-400 text-sm">Analyzing your Spotify listening history</p>
+        </div>
+      ) : !spotifyConnected ? (
+        <div className="rounded-lg border border-purple-500/20 bg-gradient-to-br from-purple-500/10 to-pink-500/10 p-8 text-center">
+          <Music className="h-12 w-12 text-purple-400 mx-auto mb-4" />
+          <p className="text-white font-semibold mb-2">Connect Spotify to Get Recommendations</p>
+          <p className="text-gray-400 text-sm mb-4">
+            We'll analyze your listening history and recommend songs you haven't heard yet
+          </p>
+          <Button
+            onClick={handleSpotifyConnect}
+            className="bg-green-600 hover:bg-green-700 text-white"
+          >
+            Connect Spotify
+          </Button>
         </div>
       ) : (
         <div

@@ -15,6 +15,11 @@ function Router() {
           <AIOverview />
         </SimpleLayout>
       )} />
+      <Route path={"/dashboard"} component={() => (
+        <SimpleLayout>
+          <AIOverview />
+        </SimpleLayout>
+      )} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

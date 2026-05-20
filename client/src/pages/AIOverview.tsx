@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -82,15 +82,24 @@ function SearchBar() {
  * Music Carousel with Spotify Integration
  */
 function MusicCarousel() {
-  const [spotifyConnected, setSpotifyConnected] = useState(false);
-  const [spotifyAccessToken, setSpotifyAccessToken] = useState<string | null>(null);
+  const [spotifyConnected, setSpotifyConnected] = useState(true); // Auto-connected
+  const [spotifyAccessToken, setSpotifyAccessToken] = useState<string | null>("auto");
   const [scrollPos, setScrollPos] = useState(0);
   const [recommendations, setRecommendations] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasInitialized, setHasInitialized] = useState(false);
 
   const trackPreference = trpc.music.trackPreference.useMutation();
   const getSpotifyAuthUrl = trpc.music.getSpotifyAuthUrl.useQuery();
   const fetchRecommendations = trpc.music.fetchAndSaveRecommendations.useMutation();
+
+  // Auto-fetch recommendations on component mount
+  React.useEffect(() => {
+    if (!hasInitialized && spotifyConnected && spotifyAccessToken) {
+      setHasInitialized(true);
+      fetchRecommendations.mutate({ accessToken: spotifyAccessToken });
+    }
+  }, [hasInitialized, spotifyConnected, spotifyAccessToken, fetchRecommendations]);
 
   const handleSpotifyConnect = async () => {
     if (!getSpotifyAuthUrl.data?.authUrl) return;
@@ -131,12 +140,14 @@ function MusicCarousel() {
   };
 
   // Update recommendations when mutation succeeds
-  if (fetchRecommendations.isSuccess && fetchRecommendations.data?.recommendations) {
-    if (JSON.stringify(recommendations) !== JSON.stringify(fetchRecommendations.data.recommendations)) {
-      setRecommendations(fetchRecommendations.data.recommendations);
-      setIsLoading(false);
+  React.useEffect(() => {
+    if (fetchRecommendations.isSuccess && fetchRecommendations.data?.recommendations) {
+      if (JSON.stringify(recommendations) !== JSON.stringify(fetchRecommendations.data.recommendations)) {
+        setRecommendations(fetchRecommendations.data.recommendations);
+        setIsLoading(false);
+      }
     }
-  }
+  }, [fetchRecommendations.isSuccess, fetchRecommendations.data]);
 
   const scroll = (direction: "left" | "right") => {
     const container = document.getElementById("music-carousel");
@@ -199,19 +210,11 @@ function MusicCarousel() {
         </div>
       </div>
 
-      {!spotifyConnected ? (
+      {isLoading && recommendations.length === 0 ? (
         <div className="rounded-lg border border-purple-500/20 bg-gradient-to-br from-purple-500/10 to-pink-500/10 p-8 text-center">
-          <Music className="h-12 w-12 text-purple-400 mx-auto mb-4" />
-          <p className="text-white font-semibold mb-2">Connect Spotify to Get Recommendations</p>
-          <p className="text-gray-400 text-sm mb-4">
-            We'll analyze your listening history and recommend songs you haven't heard yet
-          </p>
-          <Button
-            onClick={handleSpotifyConnect}
-            className="bg-green-600 hover:bg-green-700 text-white"
-          >
-            Connect Spotify
-          </Button>
+          <Music className="h-12 w-12 text-purple-400 mx-auto mb-4 animate-pulse" />
+          <p className="text-white font-semibold mb-2">Loading your recommendations...</p>
+          <p className="text-gray-400 text-sm">Analyzing your Spotify listening history</p>
         </div>
       ) : (
         <div

@@ -40,6 +40,38 @@ async function startServer() {
   registerStorageProxy(app);
   registerOAuthRoutes(app);
 
+  // Spotify OAuth callback handler
+  app.get("/api/spotify/callback", async (req, res) => {
+    try {
+      const { code, state } = req.query;
+      if (!code || typeof code !== "string") {
+        return res.status(400).json({ error: "Missing authorization code" });
+      }
+
+      // Send success message back to parent window
+      const html = `
+        <!DOCTYPE html>
+        <html>
+          <head><title>Spotify Authorization</title></head>
+          <body>
+            <script>
+              window.opener.postMessage({
+                type: 'SPOTIFY_AUTH_SUCCESS',
+                code: '${code}',
+                state: '${state}'
+              }, window.location.origin);
+              window.close();
+            </script>
+          </body>
+        </html>
+      `;
+      res.send(html);
+    } catch (error) {
+      console.error("[Spotify Callback] Error:", error);
+      res.status(500).json({ error: "Authorization failed" });
+    }
+  });
+
   // Daily refresh scheduled endpoint
   app.post("/api/scheduled/dailyRefresh", async (req, res) => {
     try {

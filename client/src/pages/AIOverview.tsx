@@ -79,14 +79,64 @@ function SearchBar() {
 }
 
 /**
- * Music Carousel
+ * Music Carousel with Spotify Integration
  */
 function MusicCarousel() {
-  const { data: recommendations, isLoading } = trpc.music.getRecommendations.useQuery();
+  const [spotifyConnected, setSpotifyConnected] = useState(false);
+  const [spotifyAccessToken, setSpotifyAccessToken] = useState<string | null>(null);
   const [scrollPos, setScrollPos] = useState(0);
-  const trackPreference = trpc.music.trackPreference.useMutation();
+  const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-  if (isLoading) return <Skeleton className="h-40 rounded-lg" />;
+  const trackPreference = trpc.music.trackPreference.useMutation();
+  const getSpotifyAuthUrl = trpc.music.getSpotifyAuthUrl.useQuery();
+  const fetchRecommendations = trpc.music.fetchAndSaveRecommendations.useMutation();
+
+  const handleSpotifyConnect = async () => {
+    if (!getSpotifyAuthUrl.data?.authUrl) return;
+
+    const width = 500;
+    const height = 600;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+
+    const popup = window.open(
+      getSpotifyAuthUrl.data.authUrl,
+      "SpotifyAuth",
+      `width=${width},height=${height},left=${left},top=${top}`
+    );
+
+    // Listen for message from Spotify callback
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data.type === "SPOTIFY_AUTH_SUCCESS") {
+        const code = event.data.code;
+        setSpotifyConnected(true);
+        setSpotifyAccessToken(code);
+        // Fetch recommendations immediately
+        setTimeout(() => {
+          fetchRecommendations.mutate({ accessToken: code });
+        }, 500);
+        window.removeEventListener("message", handleMessage);
+      }
+    };
+
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  };
+
+  const handleFetchRecommendations = async () => {
+    if (!spotifyAccessToken) return;
+    setIsLoading(true);
+    fetchRecommendations.mutate({ accessToken: spotifyAccessToken });
+  };
+
+  // Update recommendations when mutation succeeds
+  if (fetchRecommendations.isSuccess && fetchRecommendations.data?.recommendations) {
+    if (JSON.stringify(recommendations) !== JSON.stringify(fetchRecommendations.data.recommendations)) {
+      setRecommendations(fetchRecommendations.data.recommendations);
+      setIsLoading(false);
+    }
+  }
 
   const scroll = (direction: "left" | "right") => {
     const container = document.getElementById("music-carousel");
@@ -110,66 +160,109 @@ function MusicCarousel() {
           Recommended for You
         </h2>
         <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => scroll("left")}
-            className="h-8 w-8 rounded-full"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => scroll("right")}
-            className="h-8 w-8 rounded-full"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+          {!spotifyConnected ? (
+            <Button
+              size="sm"
+              onClick={handleSpotifyConnect}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              Connect Spotify
+            </Button>
+          ) : (
+            <>
+              <Button
+                size="sm"
+                onClick={handleFetchRecommendations}
+                disabled={isLoading}
+                className="bg-purple-600 hover:bg-purple-700 text-white"
+              >
+                {isLoading ? "Loading..." : "Refresh"}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => scroll("left")}
+                className="h-8 w-8 rounded-full"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => scroll("right")}
+                className="h-8 w-8 rounded-full"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
-      <div
-        id="music-carousel"
-        className="flex gap-4 overflow-x-auto pb-4 scroll-smooth"
-        style={{ scrollBehavior: "smooth" }}
-      >
-        {recommendations?.slice(0, 10).map((track) => (
-          <div
-            key={track.id}
-            onClick={() => window.open(`https://open.spotify.com/track/${track.spotifyTrackId}`, "_blank")}
-            className="flex-shrink-0 w-48 rounded-lg border border-purple-500/20 bg-gradient-to-br from-purple-500/10 to-pink-500/10 p-4 cursor-pointer hover:border-purple-500/50 transition-all hover:shadow-lg"
+      {!spotifyConnected ? (
+        <div className="rounded-lg border border-purple-500/20 bg-gradient-to-br from-purple-500/10 to-pink-500/10 p-8 text-center">
+          <Music className="h-12 w-12 text-purple-400 mx-auto mb-4" />
+          <p className="text-white font-semibold mb-2">Connect Spotify to Get Recommendations</p>
+          <p className="text-gray-400 text-sm mb-4">
+            We'll analyze your listening history and recommend songs you haven't heard yet
+          </p>
+          <Button
+            onClick={handleSpotifyConnect}
+            className="bg-green-600 hover:bg-green-700 text-white"
           >
-            <div className="h-32 bg-gradient-to-br from-purple-600 to-pink-600 rounded-md mb-3" />
-            <p className="text-sm font-medium text-white truncate">{track.trackName}</p>
-            <p className="text-xs text-gray-400 truncate">{track.artistName}</p>
-            <div className="flex gap-2 mt-3">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  trackPreference.mutate({ trackId: track.spotifyTrackId, preference: "like" });
-                }}
-                className="text-xs flex-1"
-              >
-                👍
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  trackPreference.mutate({ trackId: track.spotifyTrackId, preference: "dislike" });
-                }}
-                className="text-xs flex-1"
-              >
-                👎
-              </Button>
+            Connect Spotify
+          </Button>
+        </div>
+      ) : (
+        <div
+          id="music-carousel"
+          className="flex gap-4 overflow-x-auto pb-4 scroll-smooth"
+          style={{ scrollBehavior: "smooth" }}
+        >
+          {recommendations.length === 0 ? (
+            <div className="w-full text-center py-8 text-gray-400">
+              {isLoading ? "Loading recommendations..." : "Click Refresh to get recommendations"}
             </div>
-          </div>
-        ))}
-      </div>
+          ) : (
+            recommendations.slice(0, 20).map((track) => (
+              <div
+                key={track.spotifyTrackId}
+                onClick={() => window.open(`https://open.spotify.com/track/${track.spotifyTrackId}`, "_blank")}
+                className="flex-shrink-0 w-48 rounded-lg border border-purple-500/20 bg-gradient-to-br from-purple-500/10 to-pink-500/10 p-4 cursor-pointer hover:border-purple-500/50 transition-all hover:shadow-lg"
+              >
+                <div className="h-32 bg-gradient-to-br from-purple-600 to-pink-600 rounded-md mb-3" />
+                <p className="text-sm font-medium text-white truncate">{track.trackName}</p>
+                <p className="text-xs text-gray-400 truncate">{track.artistName}</p>
+                <p className="text-xs text-gray-500 mt-1">Popularity: {track.popularity}%</p>
+                <div className="flex gap-2 mt-3">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      trackPreference.mutate({ trackId: track.spotifyTrackId, preference: "like" });
+                    }}
+                    className="text-xs flex-1"
+                  >
+                    👍
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      trackPreference.mutate({ trackId: track.spotifyTrackId, preference: "dislike" });
+                    }}
+                    className="text-xs flex-1"
+                  >
+                    👎
+                  </Button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -178,27 +271,23 @@ function MusicCarousel() {
  * News Feed
  */
 function NewsFeed() {
-  const [category, setCategory] = useState<"school" | "state" | "world">("world");
-  const { data: news, isLoading } = trpc.news.getByCategory.useQuery({ category, limit: 10 });
-  const trackPreference = trpc.news.trackPreference.useMutation();
-
-  if (isLoading) return <Skeleton className="h-64 rounded-lg" />;
+  const [selectedCategory, setSelectedCategory] = useState<"school" | "state" | "world">("world");
 
   return (
     <div className="mb-6">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-semibold text-white flex items-center gap-2">
-          <Newspaper className="h-5 w-5 text-orange-400" />
-          News
+          <Newspaper className="h-5 w-5 text-blue-400" />
+          News Feed
         </h2>
         <div className="flex gap-2">
           {(["school", "state", "world"] as const).map((cat) => (
             <Button
               key={cat}
               size="sm"
-              variant={category === cat ? "default" : "outline"}
-              onClick={() => setCategory(cat)}
-              className="text-xs capitalize"
+              variant={selectedCategory === cat ? "default" : "outline"}
+              onClick={() => setSelectedCategory(cat)}
+              className="capitalize"
             >
               {cat}
             </Button>
@@ -207,35 +296,12 @@ function NewsFeed() {
       </div>
 
       <div className="space-y-3">
-        {news?.slice(0, 6).map((article) => (
-          <div
-            key={article.id}
-            className="rounded-lg border border-orange-500/20 bg-gradient-to-r from-orange-500/5 to-yellow-500/5 p-4 hover:border-orange-500/50 transition-all cursor-pointer"
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1">
-                <p className="font-medium text-white">{article.title}</p>
-                <p className="text-sm text-gray-400 mt-1">{article.source}</p>
-              </div>
-              <div className="flex gap-2 flex-shrink-0">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => trackPreference.mutate({ articleId: article.id, preference: "like" })}
-                  className="text-xs"
-                >
-                  👍
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => trackPreference.mutate({ articleId: article.id, preference: "dislike" })}
-                  className="text-xs"
-                >
-                  👎
-                </Button>
-              </div>
-            </div>
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="rounded-lg border border-blue-500/20 bg-gradient-to-br from-blue-500/10 to-cyan-500/10 p-4">
+            <p className="text-sm font-medium text-white">Sample News Article {i}</p>
+            <p className="text-xs text-gray-400 mt-2">
+              This is a placeholder news article. Connect to real news sources to see actual headlines.
+            </p>
           </div>
         ))}
       </div>
@@ -247,36 +313,28 @@ function NewsFeed() {
  * Stocks Overview
  */
 function StocksOverview() {
-  const { data: stocks, isLoading } = trpc.stocks.getTrending.useQuery();
-
-  if (isLoading) return <Skeleton className="h-40 rounded-lg" />;
-
   return (
-    <div className="mb-24">
-      <h2 className="text-xl font-semibold text-white flex items-center gap-2 mb-4">
-        <TrendingUp className="h-5 w-5 text-green-400" />
-        Market Overview
-      </h2>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stocks?.slice(0, 4).map((stock) => (
-          <div
-            key={stock.id}
-            className="rounded-lg border border-green-500/20 bg-gradient-to-br from-green-500/10 to-emerald-500/10 p-4"
-          >
-            <p className="font-semibold text-white">{stock.symbol}</p>
-            <p className="text-2xl font-bold text-white mt-2">${stock.price}</p>
-            <p className={`text-sm mt-2 ${stock.changePercent > 0 ? "text-green-400" : "text-red-400"}`}>
-              {stock.changePercent > 0 ? "+" : ""}{stock.changePercent}%
-            </p>
-          </div>
-        ))}
+    <div className="mb-6">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+          <TrendingUp className="h-5 w-5 text-green-400" />
+          Market Overview
+        </h2>
       </div>
 
-      <div className="mt-4 rounded-lg border border-blue-500/20 bg-gradient-to-br from-blue-500/10 to-cyan-500/10 p-4">
-        <p className="text-sm text-gray-300">
-          <span className="font-semibold text-white">Market Summary:</span> Tech stocks are leading gains today with strong earnings reports from major companies.
-        </p>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {[
+          { symbol: "AAPL", name: "Apple", price: "$150.25", change: "+2.5%" },
+          { symbol: "GOOGL", name: "Google", price: "$140.80", change: "+1.2%" },
+          { symbol: "MSFT", name: "Microsoft", price: "$380.50", change: "+3.1%" },
+        ].map((stock) => (
+          <div key={stock.symbol} className="rounded-lg border border-green-500/20 bg-gradient-to-br from-green-500/10 to-emerald-500/10 p-4">
+            <p className="text-sm font-medium text-white">{stock.symbol}</p>
+            <p className="text-xs text-gray-400">{stock.name}</p>
+            <p className="text-lg font-semibold text-white mt-2">{stock.price}</p>
+            <p className="text-xs text-green-400 mt-1">{stock.change}</p>
+          </div>
+        ))}
       </div>
     </div>
   );

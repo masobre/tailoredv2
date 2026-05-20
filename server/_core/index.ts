@@ -40,8 +40,8 @@ async function startServer() {
   registerStorageProxy(app);
   registerOAuthRoutes(app);
 
-  // Spotify OAuth callback handler
-  app.get("/api/spotify/callback", async (req, res) => {
+  // Spotify OAuth callback handler - both with and without /api prefix
+  const spotifyCallbackHandler = async (req: any, res: any) => {
     try {
       const { code, state } = req.query;
       if (!code || typeof code !== "string") {
@@ -70,7 +70,13 @@ async function startServer() {
       console.error("[Spotify Callback] Error:", error);
       res.status(500).json({ error: "Authorization failed" });
     }
-  });
+  };
+
+  // Register callback routes
+  app.get("/api/spotify/callback", spotifyCallbackHandler);
+  app.get("/callback", spotifyCallbackHandler);
+  app.get("/callback/", spotifyCallbackHandler);
+
 
   // Daily refresh scheduled endpoint
   app.post("/api/scheduled/dailyRefresh", async (req, res) => {

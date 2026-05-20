@@ -222,8 +222,8 @@ export async function updatePreferenceScores(userId: number) {
     });
 
     // Calculate aggregate preference scores
-    const musicScore = musicPrefs.reduce((sum, p) => sum + (p.score || 0), 0) / Math.max(musicPrefs.length, 1);
-    const newsScore = newsPrefs.reduce((sum, p) => sum + (p.score || 0), 0) / Math.max(newsPrefs.length, 1);
+    const musicScore = musicPrefs.reduce((sum: number, p) => sum + (p.score || 0), 0) / Math.max(musicPrefs.length, 1);
+    const newsScore = newsPrefs.reduce((sum: number, p) => sum + (p.score || 0), 0) / Math.max(newsPrefs.length, 1);
 
     // Update music recommendations based on preference score
     if (musicScore > 0) {

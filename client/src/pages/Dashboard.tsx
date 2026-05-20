@@ -1,7 +1,6 @@
-import { useAuth } from "@/_core/hooks/useAuth";
-import { DashboardLayout } from "@/components/DashboardLayout";
+import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CloudRain, TrendingUp, Mail, Music, Newspaper, AlertCircle } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -208,12 +207,7 @@ function EmailWidget() {
  * Main Dashboard Page
  */
 export default function Dashboard() {
-  const { user, loading } = useAuth();
   const refreshData = trpc.dashboard.refreshData.useMutation();
-
-  if (loading) return <DashboardLayout><Skeleton className="h-96" /></DashboardLayout>;
-
-  if (!user) return null;
 
   return (
     <DashboardLayout>
@@ -221,7 +215,7 @@ export default function Dashboard() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-white">Welcome back, {user.name}</h1>
+            <h1 className="text-3xl font-bold text-white">Welcome back, Mason</h1>
             <p className="mt-1 text-gray-400">Your personalized daily dashboard</p>
           </div>
           <Button onClick={() => refreshData.mutate()} disabled={refreshData.isPending}>

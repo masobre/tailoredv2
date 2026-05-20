@@ -95,32 +95,14 @@ function MusicCarousel() {
   const handleCallback = trpc.music.handleSpotifyCallback.useMutation();
   const fetchRecommendations = trpc.music.fetchAndSaveRecommendations.useMutation();
 
-  // Auto-fetch recommendations when token is available
+  // Setup persistent message listener for Spotify callback
   React.useEffect(() => {
-    if (!hasInitialized && spotifyConnected && spotifyAccessToken) {
-      setHasInitialized(true);
-      setIsLoading(true);
-      setError(null);
-      fetchRecommendations.mutate({ accessToken: spotifyAccessToken });
-    }
-  }, [hasInitialized, spotifyConnected, spotifyAccessToken]);
-
-  const handleSpotifyConnect = async () => {
-    if (!getSpotifyAuthUrl.data?.authUrl) return;
-
-    const width = 500;
-    const height = 600;
-    const left = window.screenX + (window.outerWidth - width) / 2;
-    const top = window.screenY + (window.outerHeight - height) / 2;
-
-    const popup = window.open(
-      getSpotifyAuthUrl.data.authUrl,
-      "SpotifyAuth",
-      `width=${width},height=${height},left=${left},top=${top}`
-    );
-
-    // Listen for message from Spotify callback
     const handleMessage = (event: MessageEvent) => {
+      // Validate origin - accept Manus domains and current origin
+      if (!event.origin.includes("manus.space") && event.origin !== window.location.origin) {
+        return;
+      }
+
       if (event.data.type === "SPOTIFY_AUTH_SUCCESS") {
         const code = event.data.code;
         setIsLoading(true);
@@ -132,7 +114,6 @@ function MusicCarousel() {
             onSuccess: (data) => {
               setSpotifyConnected(true);
               setSpotifyAccessToken(data.accessToken);
-              // Reset hasInitialized so useEffect triggers
               setHasInitialized(false);
             },
             onError: (err) => {
@@ -142,12 +123,41 @@ function MusicCarousel() {
             },
           }
         );
-        window.removeEventListener("message", handleMessage);
       }
     };
 
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
+  }, [handleCallback]);
+
+  // Auto-fetch recommendations when token is available
+  React.useEffect(() => {
+    if (!hasInitialized && spotifyConnected && spotifyAccessToken) {
+      setHasInitialized(true);
+      setIsLoading(true);
+      setError(null);
+      fetchRecommendations.mutate({ accessToken: spotifyAccessToken });
+    }
+  }, [hasInitialized, spotifyConnected, spotifyAccessToken, fetchRecommendations]);
+
+  const handleSpotifyConnect = async () => {
+    if (!getSpotifyAuthUrl.data?.authUrl) return;
+
+    const width = 500;
+    const height = 600;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+
+    // Open Spotify authorization popup
+    const popup = window.open(
+      getSpotifyAuthUrl.data.authUrl,
+      "SpotifyAuth",
+      `width=${width},height=${height},left=${left},top=${top}`
+    );
+
+    if (!popup) {
+      setError("Failed to open Spotify authorization popup. Please check your popup blocker.");
+    }
   };
 
   const handleFetchRecommendations = async () => {

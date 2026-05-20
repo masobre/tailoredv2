@@ -59,7 +59,7 @@ async function startServer() {
                 type: 'SPOTIFY_AUTH_SUCCESS',
                 code: '${code}',
                 state: '${state}'
-              }, window.location.origin);
+              }, '*');
               window.close();
             </script>
           </body>

@@ -1,31 +1,45 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
 import { getLoginUrl } from "@/const";
-import { Streamdown } from 'streamdown';
+import { useLocation } from "wouter";
+import { useEffect } from "react";
 
-/**
- * All content in this page are only for example, replace with your own feature implementation
- * When building pages, remember your instructions in Frontend Workflow, Frontend Best Practices, Design Guide and Common Pitfalls
- */
 export default function Home() {
-  // The userAuth hooks provides authentication state
-  // To implement login/logout functionality, simply call logout() or redirect to getLoginUrl()
-  let { user, loading, error, isAuthenticated, logout } = useAuth();
+  const { user, loading, isAuthenticated } = useAuth();
+  const [, setLocation] = useLocation();
 
-  // If theme is switchable in App.tsx, we can implement theme toggling like this:
-  // const { theme, toggleTheme } = useTheme();
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      setLocation("/dashboard");
+    }
+  }, [isAuthenticated, user, setLocation]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+        <div className="text-center">
+          <div className="h-12 w-12 animate-spin rounded-full border-4 border-blue-500 border-t-transparent mx-auto" />
+          <p className="mt-4 text-gray-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <main>
-        {/* Example: lucide-react for icons */}
-        <Loader2 className="animate-spin" />
-        Example Page
-        {/* Example: Streamdown for markdown rendering */}
-        <Streamdown>Any **markdown** content</Streamdown>
-        <Button variant="default">Example Button</Button>
-      </main>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center p-4">
+      <div className="max-w-md text-center">
+        <h1 className="text-5xl font-bold text-white mb-4">Tailored</h1>
+        <p className="text-xl text-gray-300 mb-2">Your Personal Daily Dashboard</p>
+        <p className="text-gray-400 mb-8">
+          Stay informed with personalized weather, stocks, music, news, and email summaries — all updated every morning at 7 AM.
+        </p>
+        <Button
+          onClick={() => (window.location.href = getLoginUrl())}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-semibold"
+        >
+          Get Started
+        </Button>
+      </div>
     </div>
   );
 }

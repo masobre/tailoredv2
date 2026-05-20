@@ -8,6 +8,9 @@ import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { sdk } from "./sdk";
+import { getDailyCache, saveDailyCache, getUserById } from "../db";
+import { fetchWeatherData, fetchTrendingStocks, fetchNewsArticles, fetchAndSummarizeEmails } from "../services";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -36,6 +39,50 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   registerStorageProxy(app);
   registerOAuthRoutes(app);
+
+  // Daily refresh scheduled endpoint
+  app.post("/api/scheduled/dailyRefresh", async (req, res) => {
+    try {
+      const user = await sdk.authenticateRequest(req);
+      if (!user.isCron || !user.taskUid) {
+        return res.status(403).json({ error: "cron-only" });
+      }
+
+      const dbUser = await getUserById(user.id);
+      if (!dbUser) {
+        return res.json({ ok: true, skipped: "user-not-found" });
+      }
+
+      const today = new Date().toISOString().split("T")[0];
+
+      // Fetch fresh data from all services
+      const weatherData = await fetchWeatherData(dbUser.location || "New York", dbUser.timezone || "UTC");
+      const stockData = await fetchTrendingStocks();
+      const newsHeadlines = await fetchNewsArticles("world");
+      const emailSummaries = await fetchAndSummarizeEmails(user.id, dbUser.spotifyAccessToken || undefined);
+
+      // Cache the data
+      await saveDailyCache(
+        user.id,
+        today,
+        weatherData || {},
+        stockData || {},
+        newsHeadlines || {},
+        { summaries: emailSummaries }
+      );
+
+      res.json({ ok: true, cached: true });
+    } catch (error) {
+      console.error("[DailyRefresh] Error:", error);
+      res.status(500).json({
+        error: error instanceof Error ? error.message : "Unknown error",
+        stack: error instanceof Error ? error.stack : undefined,
+        context: { url: req.url, taskUid: (await sdk.authenticateRequest(req)).taskUid },
+        timestamp: new Date().toISOString(),
+      });
+    }
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",

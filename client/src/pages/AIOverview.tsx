@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Cloud, Calendar, Search, Music, Newspaper, TrendingUp } from "lucide-react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useState } from "react";
 
 /**
  * Weather & Calendar Widget
@@ -95,6 +96,32 @@ function MusicCarousel() {
   const handleCallback = trpc.music.handleSpotifyCallback.useMutation();
   const fetchRecommendations = trpc.music.fetchAndSaveRecommendations.useMutation();
 
+  // Check for pending code in localStorage (from callback.html)
+  React.useEffect(() => {
+    const pendingCode = localStorage.getItem('dhub_pending_code');
+    if (pendingCode && !spotifyConnected) {
+      setIsLoading(true);
+      setError(null);
+      localStorage.removeItem('dhub_pending_code');
+      // Exchange code for access token
+      handleCallback.mutate(
+        { code: pendingCode },
+        {
+          onSuccess: (data) => {
+            setSpotifyConnected(true);
+            setSpotifyAccessToken(data.accessToken);
+            setHasInitialized(false);
+          },
+          onError: (err) => {
+            setError("Failed to authenticate with Spotify");
+            setIsLoading(false);
+            console.error("Spotify auth error:", err);
+          },
+        }
+      );
+    }
+  }, [spotifyConnected, handleCallback]);
+
   // Setup persistent message listener for Spotify callback
   React.useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -143,21 +170,9 @@ function MusicCarousel() {
   const handleSpotifyConnect = async () => {
     if (!getSpotifyAuthUrl.data?.authUrl) return;
 
-    const width = 500;
-    const height = 600;
-    const left = window.screenX + (window.outerWidth - width) / 2;
-    const top = window.screenY + (window.outerHeight - height) / 2;
-
-    // Open Spotify authorization popup
-    const popup = window.open(
-      getSpotifyAuthUrl.data.authUrl,
-      "SpotifyAuth",
-      `width=${width},height=${height},left=${left},top=${top}`
-    );
-
-    if (!popup) {
-      setError("Failed to open Spotify authorization popup. Please check your popup blocker.");
-    }
+    // Open Spotify authorization in new window
+    // The callback.html page will catch the redirect and store code in localStorage
+    window.location.href = getSpotifyAuthUrl.data.authUrl;
   };
 
   const handleFetchRecommendations = async () => {

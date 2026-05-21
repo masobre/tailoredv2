@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Cloud, Calendar, Search, Music, Newspaper, TrendingUp } from "lucide-react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useState } from "react";
 
 /**
  * Weather & Calendar Widget
@@ -95,6 +94,16 @@ function MusicCarousel() {
   const getSpotifyAuthUrl = trpc.music.getSpotifyAuthUrl.useQuery();
   const handleCallback = trpc.music.handleSpotifyCallback.useMutation();
   const fetchRecommendations = trpc.music.fetchAndSaveRecommendations.useMutation();
+
+  // Auto-connect with hardcoded Spotify access token on mount
+  React.useEffect(() => {
+    const autoConnectToken = import.meta.env.VITE_SPOTIFY_ACCESS_TOKEN;
+    if (autoConnectToken && !spotifyConnected) {
+      setSpotifyConnected(true);
+      setSpotifyAccessToken(autoConnectToken);
+      setHasInitialized(false);
+    }
+  }, [spotifyConnected]);
 
   // Check for pending code in localStorage (from callback.html)
   React.useEffect(() => {
@@ -261,10 +270,11 @@ function MusicCarousel() {
           <p className="text-white font-semibold mb-2">Error Loading Music</p>
           <p className="text-gray-400 text-sm mb-4">{error}</p>
           <Button
-            onClick={handleSpotifyConnect}
-            className="bg-green-600 hover:bg-green-700 text-white"
+            onClick={handleFetchRecommendations}
+            disabled={isLoading}
+            className="bg-purple-600 hover:bg-purple-700 text-white"
           >
-            Reconnect Spotify
+            {isLoading ? "Loading..." : "Refresh Recommendations"}
           </Button>
         </div>
       ) : isLoading && recommendations.length === 0 ? (
@@ -273,12 +283,12 @@ function MusicCarousel() {
           <p className="text-white font-semibold mb-2">Loading your recommendations...</p>
           <p className="text-gray-400 text-sm">Analyzing your Spotify listening history</p>
         </div>
-      ) : !spotifyConnected ? (
+      ) : recommendations.length === 0 ? (
         <div className="rounded-lg border border-purple-500/20 bg-gradient-to-br from-purple-500/10 to-pink-500/10 p-8 text-center">
           <Music className="h-12 w-12 text-purple-400 mx-auto mb-4" />
-          <p className="text-white font-semibold mb-2">Connect Spotify to Get Recommendations</p>
+          <p className="text-white font-semibold mb-2">No Recommendations Yet</p>
           <p className="text-gray-400 text-sm mb-4">
-            We'll analyze your listening history and recommend songs you haven't heard yet
+            Click Refresh to load your personalized recommendations
           </p>
           <Button
             onClick={handleSpotifyConnect}

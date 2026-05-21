@@ -91,8 +91,6 @@ function MusicCarousel() {
   const [hasInitialized, setHasInitialized] = useState(false);
 
   const trackPreference = trpc.music.trackPreference.useMutation();
-  const getSpotifyAuthUrl = trpc.music.getSpotifyAuthUrl.useQuery();
-  const handleCallback = trpc.music.handleSpotifyCallback.useMutation();
   const fetchRecommendations = trpc.music.fetchAndSaveRecommendations.useMutation();
 
   // Auto-connect with hardcoded Spotify access token on mount
@@ -106,66 +104,9 @@ function MusicCarousel() {
     }
   }, []);
 
-  // Check for pending code in localStorage (from callback.html)
-  React.useEffect(() => {
-    const pendingCode = localStorage.getItem('dhub_pending_code');
-    if (pendingCode && !spotifyConnected) {
-      setIsLoading(true);
-      setError(null);
-      localStorage.removeItem('dhub_pending_code');
-      // Exchange code for access token
-      handleCallback.mutate(
-        { code: pendingCode },
-        {
-          onSuccess: (data) => {
-            setSpotifyConnected(true);
-            setSpotifyAccessToken(data.accessToken);
-            setHasInitialized(false);
-          },
-          onError: (err) => {
-            setError("Failed to authenticate with Spotify");
-            setIsLoading(false);
-            console.error("Spotify auth error:", err);
-          },
-        }
-      );
-    }
-  }, [spotifyConnected, handleCallback]);
+  // Removed OAuth callback logic - using hardcoded token instead
 
-  // Setup persistent message listener for Spotify callback
-  React.useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      // Validate origin - accept Manus domains and current origin
-      if (!event.origin.includes("manus.space") && event.origin !== window.location.origin) {
-        return;
-      }
-
-      if (event.data.type === "SPOTIFY_AUTH_SUCCESS") {
-        const code = event.data.code;
-        setIsLoading(true);
-        setError(null);
-        // Exchange code for access token
-        handleCallback.mutate(
-          { code },
-          {
-            onSuccess: (data) => {
-              setSpotifyConnected(true);
-              setSpotifyAccessToken(data.accessToken);
-              setHasInitialized(false);
-            },
-            onError: (err) => {
-              setError("Failed to authenticate with Spotify");
-              setIsLoading(false);
-              console.error("Spotify auth error:", err);
-            },
-          }
-        );
-      }
-    };
-
-    window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
-  }, [handleCallback]);
+  // Removed message listener - using hardcoded token instead
 
   // Auto-fetch recommendations when token is available
   React.useEffect(() => {

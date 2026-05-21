@@ -200,6 +200,39 @@ export class SpotifyService {
       throw error;
     }
   }
+
+  /**
+   * Get personalized recommendations (simplified approach)
+   * 1. Fetch user's top tracks
+   * 2. Extract seed data
+   * 3. Get recommendations based on seeds
+   */
+  async getPersonalizedRecommendations(accessToken: string, limit = 20): Promise<SpotifyTrack[]> {
+    try {
+      console.log("[Spotify] Fetching personalized recommendations...");
+
+      // Step 1: Get user's top tracks
+      const topTracks = await this.getTopTracks(accessToken, "medium_term", 10);
+      console.log(`[Spotify] Got ${topTracks.length} top tracks`);
+
+      if (topTracks.length === 0) {
+        throw new Error("No top tracks found");
+      }
+
+      // Step 2: Extract seed track IDs (use top 5 tracks as seeds)
+      const seedTrackIds = topTracks.slice(0, 5).map((t) => t.id);
+      console.log(`[Spotify] Using ${seedTrackIds.length} seed tracks`);
+
+      // Step 3: Get recommendations based on seeds
+      const recommendations = await this.getRecommendations(accessToken, seedTrackIds, limit);
+      console.log(`[Spotify] Got ${recommendations.length} recommendations`);
+
+      return recommendations;
+    } catch (error) {
+      console.error("[Spotify] Error getting personalized recommendations:", error);
+      throw error;
+    }
+  }
 }
 
 export const spotifyService = new SpotifyService();

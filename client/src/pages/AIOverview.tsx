@@ -115,9 +115,11 @@ function MusicCarousel() {
       setHasInitialized(true);
       setIsLoading(true);
       setError(null);
+      
+      // Fetch recommendations
       fetchRecommendations.mutate({ accessToken: spotifyAccessToken });
     }
-  }, [spotifyConnected, spotifyAccessToken, fetchRecommendations]);
+  }, [spotifyConnected, spotifyAccessToken]);
 
   const handleSpotifyConnect = async () => {
     // This button is hidden - auto-connect happens on mount
@@ -133,15 +135,18 @@ function MusicCarousel() {
   // Handle recommendations fetch success/error
   React.useEffect(() => {
     if (fetchRecommendations.isSuccess && fetchRecommendations.data?.recommendations) {
+      console.log('[Spotify] Got recommendations:', fetchRecommendations.data.recommendations.length);
       setRecommendations(fetchRecommendations.data.recommendations);
       setIsLoading(false);
       setError(null);
     } else if (fetchRecommendations.isError) {
-      setError("Failed to fetch recommendations. Please try again.");
+      const errorMsg = fetchRecommendations.error?.message || "Failed to fetch recommendations";
+      console.error('[Spotify] Error:', errorMsg);
+      setError(`Error: ${errorMsg}. Please get a fresh Spotify token.`);
       setIsLoading(false);
       setRecommendations([]);
     }
-  }, [fetchRecommendations.isSuccess, fetchRecommendations.isError, fetchRecommendations.data]);
+  }, [fetchRecommendations.isSuccess, fetchRecommendations.isError, fetchRecommendations.data, fetchRecommendations.error]);
 
   const scroll = (direction: "left" | "right") => {
     const container = document.getElementById("music-carousel");

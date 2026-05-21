@@ -159,29 +159,30 @@ export const appRouter = router({
       }),
 
     /**
-     * Fetch and save music recommendations from Spotify
-     * Requires valid Spotify access token
+     * Get personalized music recommendations (simplified approach)
+     * 1. Fetch user's top tracks
+     * 2. Use them as seeds for recommendations
+     * 3. Return formatted recommendations
      */
     fetchAndSaveRecommendations: publicProcedure
       .input(z.object({ accessToken: z.string() }))
       .mutation(async ({ input }) => {
         try {
-          // Fetch user's top tracks to use as seeds
-          const topTracks = await spotifyService.getTopTracks(input.accessToken, "medium_term", 5);
+          console.log("[Music] Starting recommendation fetch...");
+          
+          // Use the simplified method
+          const recommendations = await spotifyService.getPersonalizedRecommendations(input.accessToken, 20);
 
-          if (topTracks.length === 0) {
+          if (!recommendations || recommendations.length === 0) {
+            console.log("[Music] No recommendations returned");
             return {
               recommendations: [],
               count: 0,
-              message: "No top tracks found. Listen to more music on Spotify first.",
+              message: "No recommendations available. Try listening to more music on Spotify.",
             };
           }
 
-          // Get recommendations based on top tracks
-          const seedTrackIds = topTracks.map((t) => t.id);
-          const recommendations = await spotifyService.getRecommendations(input.accessToken, seedTrackIds, 20);
-
-          // Filter out tracks the user has already listened to more than 3 times
+          // Format recommendations for frontend
           const formattedRecommendations = recommendations.map((track) => ({
             id: track.id,
             spotifyTrackId: track.id,
@@ -194,6 +195,7 @@ export const appRouter = router({
             recommendationScore: track.popularity / 100,
           }));
 
+          console.log(`[Music] Returning ${formattedRecommendations.length} recommendations`);
           return {
             recommendations: formattedRecommendations,
             count: formattedRecommendations.length,

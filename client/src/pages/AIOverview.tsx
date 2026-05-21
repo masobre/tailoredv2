@@ -99,11 +99,12 @@ function MusicCarousel() {
   React.useEffect(() => {
     const autoConnectToken = import.meta.env.VITE_SPOTIFY_ACCESS_TOKEN;
     if (autoConnectToken && !spotifyConnected) {
+      console.log('[Spotify] Auto-connecting with token');
       setSpotifyConnected(true);
       setSpotifyAccessToken(autoConnectToken);
       setHasInitialized(false);
     }
-  }, [spotifyConnected]);
+  }, []);
 
   // Check for pending code in localStorage (from callback.html)
   React.useEffect(() => {
@@ -169,19 +170,17 @@ function MusicCarousel() {
   // Auto-fetch recommendations when token is available
   React.useEffect(() => {
     if (!hasInitialized && spotifyConnected && spotifyAccessToken) {
+      console.log('[Spotify] Fetching recommendations with token:', spotifyAccessToken.substring(0, 20) + '...');
       setHasInitialized(true);
       setIsLoading(true);
       setError(null);
       fetchRecommendations.mutate({ accessToken: spotifyAccessToken });
     }
-  }, [hasInitialized, spotifyConnected, spotifyAccessToken, fetchRecommendations]);
+  }, [spotifyConnected, spotifyAccessToken, fetchRecommendations]);
 
   const handleSpotifyConnect = async () => {
-    if (!getSpotifyAuthUrl.data?.authUrl) return;
-
-    // Open Spotify authorization in new window
-    // The callback.html page will catch the redirect and store code in localStorage
-    window.location.href = getSpotifyAuthUrl.data.authUrl;
+    // This button is hidden - auto-connect happens on mount
+    console.log('[Spotify] Connect button clicked (should be hidden)');
   };
 
   const handleFetchRecommendations = async () => {

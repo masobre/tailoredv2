@@ -83,9 +83,11 @@ export const appRouter = router({
 
   // Dashboard data
   dashboard: router({
-    getDailyData: protectedProcedure.query(async ({ ctx }) => {
+    getDailyData: publicProcedure.query(async ({ ctx }) => {
       const today = new Date().toISOString().split("T")[0];
-      const cache = await getDailyCache(ctx.user.id, today);
+      // Use a default user ID since this is a personal app with no auth
+      const userId = 1;
+      const cache = await getDailyCache(userId, today);
 
       if (cache) {
         return {
@@ -100,8 +102,10 @@ export const appRouter = router({
       return null;
     }),
 
-    refreshData: protectedProcedure.mutation(async ({ ctx }) => {
-      const user = await getUserById(ctx.user.id);
+    refreshData: publicProcedure.mutation(async ({ ctx }) => {
+      // Use a default user ID since this is a personal app with no auth
+      const userId = 1;
+      const user = await getUserById(userId);
       if (!user) throw new TRPCError({ code: "NOT_FOUND" });
 
       // Fetch fresh data from all services
@@ -265,17 +269,21 @@ export const appRouter = router({
 
   // News feed
   news: router({
-    getByCategory: protectedProcedure
+    getByCategory: publicProcedure
       .input(z.object({ category: z.enum(["school", "state", "world"]), limit: z.number().optional() }))
       .query(async ({ ctx, input }) => {
-        return getNewsByCategory(ctx.user.id, input.category, input.limit || 10);
+        // Use default user ID for personal dashboard
+        const userId = 1;
+        return getNewsByCategory(userId, input.category, input.limit || 10);
       }),
 
-    trackPreference: protectedProcedure
+    trackPreference: publicProcedure
       .input(z.object({ articleId: z.number(), preference: z.enum(["like", "dislike"]) }))
       .mutation(async ({ ctx, input }) => {
+        // Use default user ID for personal dashboard
+        const userId = 1;
         const score = input.preference === "like" ? 1 : -1;
-        await trackUserPreference(ctx.user.id, "news", input.articleId.toString(), score);
+        await trackUserPreference(userId, "news", input.articleId.toString(), score);
         return { success: true };
       }),
   }),
